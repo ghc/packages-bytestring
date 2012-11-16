@@ -270,7 +270,7 @@ import GHC.IO.Handle.Internals
 import GHC.IO.Handle.Types
 import GHC.IO.Buffer
 import GHC.IO.BufferedIO as Buffered
-import GHC.IO                   (unsafePerformIO)
+import GHC.IO                   (unsafePerformIO, unsafeDupablePerformIO)
 import Data.Char                (ord)
 import Foreign.Marshal.Utils    (copyBytes)
 #else
@@ -298,6 +298,10 @@ assertS s False = error ("assertion failed at "++s)
 -- An alternative to hWaitForInput
 hWaitForInput :: Handle -> Int -> IO ()
 hWaitForInput _ _ = return ()
+#endif
+
+#ifndef __GLASGOW_HASKELL__
+unsafeDupablePerformIO = unsafePerformIO
 #endif
 
 -- -----------------------------------------------------------------------------
