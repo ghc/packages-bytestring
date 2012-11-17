@@ -23,8 +23,6 @@ module Data.ByteString.Unsafe (
         -- * Unchecked access
         unsafeHead,             -- :: ByteString -> Word8
         unsafeTail,             -- :: ByteString -> ByteString
-        unsafeInit,             -- :: ByteString -> ByteString
-        unsafeLast,             -- :: ByteString -> Word8
         unsafeIndex,            -- :: ByteString -> Int -> Word8
         unsafeTake,             -- :: Int -> ByteString -> ByteString
         unsafeDrop,             -- :: Int -> ByteString -> ByteString
@@ -38,7 +36,6 @@ module Data.ByteString.Unsafe (
         unsafePackCString,      -- :: CString -> IO ByteString
         unsafePackCStringLen,   -- :: CStringLen -> IO ByteString
         unsafePackMallocCString,-- :: CString -> IO ByteString
-        unsafePackMallocCStringLen, -- :: CStringLen -> IO ByteString
 
 #if defined(__GLASGOW_HASKELL__)
         unsafePackAddress,          -- :: Addr# -> IO ByteString
@@ -111,21 +108,6 @@ unsafeHead (PS x s l) = assert (l > 0) $
 unsafeTail :: ByteString -> ByteString
 unsafeTail (PS ps s l) = assert (l > 0) $ PS ps (s+1) (l-1)
 {-# INLINE unsafeTail #-}
-
--- | A variety of 'init' for non-empty ByteStrings. 'unsafeInit' omits the
--- check for the empty case. As with 'unsafeHead', the programmer must
--- provide a separate proof that the ByteString is non-empty.
-unsafeInit :: ByteString -> ByteString
-unsafeInit (PS ps s l) = assert (l > 0) $ PS ps s (l-1)
-{-# INLINE unsafeInit #-}
-
--- | A variety of 'last' for non-empty ByteStrings. 'unsafeLast' omits the
--- check for the empty case. As with 'unsafeHead', the programmer must
--- provide a separate proof that the ByteString is non-empty.
-unsafeLast :: ByteString -> Word8
-unsafeLast (PS x s l) = assert (l > 0) $
-    inlinePerformIO $ withForeignPtr x $ \p -> peekByteOff p (s+l-1)
-{-# INLINE unsafeLast #-}
 
 -- | Unsafe 'ByteString' index (subscript) operator, starting from 0, returning a 'Word8'
 -- This omits the bounds check, which means there is an accompanying
@@ -280,22 +262,6 @@ unsafePackMallocCString cstr = do
     fp <- newForeignPtr c_free_finalizer (castPtr cstr)
     len <- c_strlen cstr
     return $! PS fp 0 (fromIntegral len)
-
--- | /O(n)/ Build a @ByteString@ from a malloced @CStringLen@. This
--- value will have a @free(3)@ finalizer associated to it.
---
--- This funtion is /unsafe/. If the original @CString@ is later
--- modified, this change will be reflected in the resulting @ByteString@,
--- breaking referential transparency.
---
--- This function is also unsafe if you call its finalizer twice,
--- which will result in a /double free/ error, or if you pass it
--- a CString not allocated with 'malloc'.
---
-unsafePackMallocCStringLen :: CStringLen -> IO ByteString
-unsafePackMallocCStringLen (cstr, len) = do
-    fp <- newForeignPtr c_free_finalizer (castPtr cstr)
-    return $! PS fp 0 len
 
 -- ---------------------------------------------------------------------
 

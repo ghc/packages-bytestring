@@ -35,11 +35,9 @@ module Data.ByteString.Internal (
 
         -- * Low level imperative construction
         create,                 -- :: Int -> (Ptr Word8 -> IO ()) -> IO ByteString
-        createUptoN,            -- :: Int -> (Ptr Word8 -> IO Int) -> IO ByteString
         createAndTrim,          -- :: Int -> (Ptr Word8 -> IO Int) -> IO  ByteString
         createAndTrim',         -- :: Int -> (Ptr Word8 -> IO (Int, Int, a)) -> IO (ByteString, a)
         unsafeCreate,           -- :: Int -> (Ptr Word8 -> IO ()) ->  ByteString
-        unsafeCreateUptoN,      -- :: Int -> (Ptr Word8 -> IO Int) ->  ByteString
         mallocByteString,       -- :: Int -> IO (ForeignPtr a)
 
         -- * Conversion to and from ForeignPtrs
@@ -65,6 +63,10 @@ module Data.ByteString.Internal (
         c_maximum,              -- :: Ptr Word8 -> CInt -> IO Word8
         c_minimum,              -- :: Ptr Word8 -> CInt -> IO Word8
         c_count,                -- :: Ptr Word8 -> CInt -> Word8 -> IO CInt
+#if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ < 611
+        -- * Internal GHC magic
+        memcpy_ptr_baoff,       -- :: Ptr a -> RawBuffer -> CInt -> CSize -> IO (Ptr ())
+#endif
 
         -- * Chars
         w2c, c2w, isSpaceWord8, isSpaceChar8
@@ -242,7 +244,7 @@ unsafePackLenChars len cs0 =
 
 packUptoLenBytes :: Int -> [Word8] -> (ByteString, [Word8])
 packUptoLenBytes len xs0 =
-    unsafeCreateUptoN' len $ \p -> go p len xs0
+    unsafeDupablePerformIO $ create' len $ \p -> go p len xs0
   where
     go !_ !n []     = return (len-n, [])
     go !_ !0 xs     = return (len,   xs)
@@ -250,7 +252,7 @@ packUptoLenBytes len xs0 =
 
 packUptoLenChars :: Int -> [Char] -> (ByteString, [Char])
 packUptoLenChars len cs0 =
-    unsafeCreateUptoN' len $ \p -> go p len cs0
+    unsafeDupablePerformIO $ create' len $ \p -> go p len cs0
   where
     go !_ !n []     = return (len-n, [])
     go !_ !0 cs     = return (len,   cs)
@@ -349,22 +351,12 @@ toForeignPtr (PS ps s l) = (ps, s, l)
 {-# INLINE toForeignPtr #-}
 
 -- | A way of creating ByteStrings outside the IO monad. The @Int@
--- argument gives the final size of the ByteString.
+-- argument gives the final size of the ByteString. Unlike
+-- 'createAndTrim' the ByteString is not reallocated if the final size
+-- is less than the estimated size.
 unsafeCreate :: Int -> (Ptr Word8 -> IO ()) -> ByteString
 unsafeCreate l f = unsafeDupablePerformIO (create l f)
 {-# INLINE unsafeCreate #-}
-
--- | Like 'unsafeCreate' but instead of giving the final size of the
--- ByteString, it is just an upper bound. The inner action returns
--- the actual size. Unlike 'createAndTrim' the ByteString is not
--- reallocated if the final size is less than the estimated size.
-unsafeCreateUptoN :: Int -> (Ptr Word8 -> IO Int) -> ByteString
-unsafeCreateUptoN l f = unsafeDupablePerformIO (createUptoN l f)
-{-# INLINE unsafeCreateUptoN #-}
-
-unsafeCreateUptoN' :: Int -> (Ptr Word8 -> IO (Int, a)) -> (ByteString, a)
-unsafeCreateUptoN' l f = unsafeDupablePerformIO (createUptoN' l f)
-{-# INLINE unsafeCreateUptoN' #-}
 
 #ifndef __GLASGOW_HASKELL__
 -- for Hugs, NHC etc
@@ -380,22 +372,13 @@ create l f = do
     return $! PS fp 0 l
 {-# INLINE create #-}
 
--- | Create ByteString of up to size size @l@ and use action @f@ to fill it's
--- contents which returns its true size.
-createUptoN :: Int -> (Ptr Word8 -> IO Int) -> IO ByteString
-createUptoN l f = do
-    fp <- mallocByteString l
-    l' <- withForeignPtr fp $ \p -> f p
-    assert (l' <= l) $ return $! PS fp 0 l'
-{-# INLINE createUptoN #-}
-
 -- | Create ByteString of up to size @l@ and use action @f@ to fill it's contents which returns its true size.
-createUptoN' :: Int -> (Ptr Word8 -> IO (Int, a)) -> IO (ByteString, a)
-createUptoN' l f = do
+create' :: Int -> (Ptr Word8 -> IO (Int, a)) -> IO (ByteString, a)
+create' l f = do
     fp <- mallocByteString l
     (l', res) <- withForeignPtr fp $ \p -> f p
     assert (l' <= l) $ return (PS fp 0 l', res)
-{-# INLINE createUptoN' #-}
+{-# INLINE create' #-}
 
 -- | Given the maximum size needed and a function to make the contents
 -- of a ByteString, createAndTrim makes the 'ByteString'. The generating
@@ -601,3 +584,10 @@ foreign import ccall unsafe "static fpstring.h fps_minimum" c_minimum
 foreign import ccall unsafe "static fpstring.h fps_count" c_count
     :: Ptr Word8 -> CULong -> Word8 -> IO CULong
 
+-- ---------------------------------------------------------------------
+-- Internal GHC Haskell magic
+
+#if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ < 611
+foreign import ccall unsafe "__hscore_memcpy_src_off"
+   memcpy_ptr_baoff :: Ptr a -> RawBuffer -> CInt -> CSize -> IO (Ptr ())
+#endif

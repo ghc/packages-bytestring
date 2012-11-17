@@ -61,7 +61,6 @@ module Data.ByteString.Char8 (
         append,                 -- :: ByteString -> ByteString -> ByteString
         head,                   -- :: ByteString -> Char
         uncons,                 -- :: ByteString -> Maybe (Char, ByteString)
-        unsnoc,                 -- :: ByteString -> Maybe (ByteString, Char)
         last,                   -- :: ByteString -> Char
         tail,                   -- :: ByteString -> ByteString
         init,                   -- :: ByteString -> ByteString
@@ -193,9 +192,6 @@ module Data.ByteString.Char8 (
         useAsCStringLen,        -- :: ByteString -> (CStringLen -> IO a) -> IO a
 
         -- * I\/O with 'ByteString's
-        -- | ByteString I/O uses binary mode, without any character decoding
-        -- or newline conversion. The fact that it does not respect the Handle
-        -- newline mode is considered a flaw and may be changed in a future version.
 
         -- ** Standard input and output
         getLine,                -- :: IO ByteString
@@ -214,7 +210,6 @@ module Data.ByteString.Char8 (
         hGetLine,               -- :: Handle -> IO ByteString
         hGetContents,           -- :: Handle -> IO ByteString
         hGet,                   -- :: Handle -> Int -> IO ByteString
-        hGetSome,               -- :: Handle -> Int -> IO ByteString
         hGetNonBlocking,        -- :: Handle -> Int -> IO ByteString
         hPut,                   -- :: Handle -> ByteString -> IO ()
         hPutNonBlocking,        -- :: Handle -> ByteString -> IO ByteString
@@ -247,7 +242,7 @@ import Data.ByteString (empty,null,length,tail,init,append
                        ,findSubstring,findSubstrings,breakSubstring,copy,group
 
                        ,getLine, getContents, putStr, interact
-                       ,hGetContents, hGet, hGetSome, hPut, hPutStr
+                       ,hGetContents, hGet, hPut, hPutStr
                        ,hGetLine, hGetNonBlocking, hPutNonBlocking
                        ,packCString,packCStringLen
                        ,useAsCString,useAsCStringLen
@@ -258,7 +253,7 @@ import Data.ByteString.Internal
 import Data.Char    ( isSpace )
 import qualified Data.List as List (intersperse)
 
-import System.IO    (Handle,stdout,openBinaryFile,hClose,hFileSize,IOMode(..))
+import System.IO                (Handle,stdout,openFile,hClose,hFileSize,IOMode(..))
 #ifndef __NHC__
 import Control.Exception        (bracket)
 #else
@@ -322,14 +317,6 @@ uncons bs = case B.uncons bs of
                   Nothing -> Nothing
                   Just (w, bs') -> Just (w2c w, bs')
 {-# INLINE uncons #-}
-
--- | /O(1)/ Extract the 'init' and 'last' of a ByteString, returning Nothing
--- if it is empty.
-unsnoc :: ByteString -> Maybe (ByteString, Char)
-unsnoc bs = case B.unsnoc bs of
-                  Nothing -> Nothing
-                  Just (bs', w) -> Just (bs', w2c w)
-{-# INLINE unsnoc #-}
 
 -- | /O(1)/ Extract the first element of a ByteString, which must be non-empty.
 head :: ByteString -> Char
@@ -1007,17 +994,17 @@ readInteger as
 -- 'pack'.  It also may be more efficient than opening the file and
 -- reading it using hGet.
 readFile :: FilePath -> IO ByteString
-readFile f = bracket (openBinaryFile f ReadMode) hClose
+readFile f = bracket (openFile f ReadMode) hClose
     (\h -> hFileSize h >>= hGet h . fromIntegral)
 
 -- | Write a 'ByteString' to a file.
 writeFile :: FilePath -> ByteString -> IO ()
-writeFile f txt = bracket (openBinaryFile f WriteMode) hClose
+writeFile f txt = bracket (openFile f WriteMode) hClose
     (\h -> hPut h txt)
 
 -- | Append a 'ByteString' to a file.
 appendFile :: FilePath -> ByteString -> IO ()
-appendFile f txt = bracket (openBinaryFile f AppendMode) hClose
+appendFile f txt = bracket (openFile f AppendMode) hClose
     (\h -> hPut h txt)
 
 

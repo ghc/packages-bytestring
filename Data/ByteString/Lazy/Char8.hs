@@ -54,7 +54,6 @@ module Data.ByteString.Lazy.Char8 (
         uncons,                 -- :: ByteString -> Maybe (Char, ByteString)
         last,                   -- :: ByteString -> Char
         tail,                   -- :: ByteString -> ByteString
-        unsnoc,                 -- :: ByteString -> Maybe (ByteString, Char)
         init,                   -- :: ByteString -> ByteString
         null,                   -- :: ByteString -> Bool
         length,                 -- :: ByteString -> Int64
@@ -167,9 +166,6 @@ module Data.ByteString.Lazy.Char8 (
         readInteger,
 
         -- * I\/O with 'ByteString's
-        -- | ByteString I/O uses binary mode, without any character decoding
-        -- or newline conversion. The fact that it does not respect the Handle
-        -- newline mode is considered a flaw and may be changed in a future version.
 
         -- ** Standard input and output
         getContents,            -- :: IO ByteString
@@ -221,7 +217,7 @@ import Prelude hiding
         ,readFile,writeFile,appendFile,replicate,getContents,getLine,putStr,putStrLn
         ,zip,zipWith,unzip,notElem,repeat,iterate,interact,cycle)
 
-import System.IO            (Handle,stdout,hClose,openBinaryFile,IOMode(..))
+import System.IO            (Handle,stdout,hClose,openFile,IOMode(..))
 #ifndef __NHC__
 import Control.Exception    (bracket)
 #else
@@ -293,14 +289,6 @@ uncons bs = case L.uncons bs of
                   Nothing -> Nothing
                   Just (w, bs') -> Just (w2c w, bs')
 {-# INLINE uncons #-}
-
--- | /O(n\/c)/ Extract the 'init' and 'last' of a ByteString, returning Nothing
--- if it is empty.
-unsnoc :: ByteString -> Maybe (ByteString, Char)
-unsnoc bs = case L.unsnoc bs of
-                  Nothing -> Nothing
-                  Just (bs', w) -> Just (bs', w2c w)
-{-# INLINE unsnoc #-}
 
 -- | /O(1)/ Extract the last element of a packed string, which must be non-empty.
 last :: ByteString -> Char
@@ -856,18 +844,19 @@ readInteger (Chunk c0 cs0) =
           end n c cs = let c' = chunk c cs
                         in c' `seq` (n, c')
 
--- | Read an entire file /lazily/ into a 'ByteString'.
+-- | Read an entire file /lazily/ into a 'ByteString'. Use 'text mode'
+-- on Windows to interpret newlines
 readFile :: FilePath -> IO ByteString
-readFile f = openBinaryFile f ReadMode >>= hGetContents
+readFile f = openFile f ReadMode >>= hGetContents
 
 -- | Write a 'ByteString' to a file.
 writeFile :: FilePath -> ByteString -> IO ()
-writeFile f txt = bracket (openBinaryFile f WriteMode) hClose
+writeFile f txt = bracket (openFile f WriteMode) hClose
     (\hdl -> hPut hdl txt)
 
 -- | Append a 'ByteString' to a file.
 appendFile :: FilePath -> ByteString -> IO ()
-appendFile f txt = bracket (openBinaryFile f AppendMode) hClose
+appendFile f txt = bracket (openFile f AppendMode) hClose
     (\hdl -> hPut hdl txt)
 
 

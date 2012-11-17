@@ -56,7 +56,6 @@ module Data.ByteString (
         append,                 -- :: ByteString -> ByteString -> ByteString
         head,                   -- :: ByteString -> Word8
         uncons,                 -- :: ByteString -> Maybe (Word8, ByteString)
-        unsnoc,                 -- :: ByteString -> Maybe (ByteString, Word8)
         last,                   -- :: ByteString -> Word8
         tail,                   -- :: ByteString -> ByteString
         init,                   -- :: ByteString -> ByteString
@@ -464,16 +463,6 @@ init ps@(PS p s l)
     | otherwise = PS p s (l-1)
 {-# INLINE init #-}
 
--- | /O(1)/ Extract the 'init' and 'last' of a ByteString, returning Nothing
--- if it is empty.
-unsnoc :: ByteString -> Maybe (ByteString, Word8)
-unsnoc (PS x s l)
-    | l <= 0    = Nothing
-    | otherwise = Just (PS x s (l-1),
-                        inlinePerformIO $ withForeignPtr x
-                                        $ \p -> peekByteOff p (s+l-1))
-{-# INLINE unsnoc #-}
-
 -- | /O(n)/ Append two ByteStrings
 append :: ByteString -> ByteString -> ByteString
 append = mappend
@@ -592,7 +581,7 @@ foldl1' f ps
 foldr1 :: (Word8 -> Word8 -> Word8) -> ByteString -> Word8
 foldr1 f ps
     | null ps        = errorEmptyList "foldr1"
-    | otherwise      = foldr f (unsafeLast ps) (unsafeInit ps)
+    | otherwise      = foldr f (last ps) (init ps)
 {-# INLINE foldr1 #-}
 
 -- | 'foldr1\'' is a variant of 'foldr1', but is strict in the
@@ -600,7 +589,7 @@ foldr1 f ps
 foldr1' :: (Word8 -> Word8 -> Word8) -> ByteString -> Word8
 foldr1' f ps
     | null ps        = errorEmptyList "foldr1"
-    | otherwise      = foldr' f (unsafeLast ps) (unsafeInit ps)
+    | otherwise      = foldr' f (last ps) (init ps)
 {-# INLINE foldr1' #-}
 
 -- ---------------------------------------------------------------------
@@ -775,7 +764,7 @@ scanr f v (PS fp s len) = inlinePerformIO $ withForeignPtr fp $ \a ->
 scanr1 :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString
 scanr1 f ps
     | null ps   = empty
-    | otherwise = scanr f (unsafeLast ps) (unsafeInit ps)
+    | otherwise = scanr f (last ps) (init ps) -- todo, unsafe versions
 {-# INLINE scanr1 #-}
 
 -- ---------------------------------------------------------------------
@@ -820,7 +809,7 @@ unfoldr f = concat . unfoldChunk 32 64
 --
 -- The following equation relates 'unfoldrN' and 'unfoldr':
 --
--- > fst (unfoldrN n f s) == take n (unfoldr f s)
+-- > snd (unfoldrN n f s) == take n (unfoldr f s)
 --
 unfoldrN :: Int -> (a -> Maybe (Word8, a)) -> a -> (ByteString, Maybe a)
 unfoldrN i f x0
@@ -1500,7 +1489,6 @@ zipWith :: (Word8 -> Word8 -> a) -> ByteString -> ByteString -> [a]
 zipWith f ps qs
     | null ps || null qs = []
     | otherwise = f (unsafeHead ps) (unsafeHead qs) : zipWith f (unsafeTail ps) (unsafeTail qs)
-{-# NOINLINE [1] zipWith #-}
 
 --
 -- | A specialised version of zipWith for the common case of a
@@ -1786,7 +1774,6 @@ mkPS buf start end =
         memcpy_ptr_baoff p buf (fromIntegral start) (fromIntegral len)
         return ()
 
-memcpy_ptr_baoff dst src src_off sz = memcpy dst (src+src_off) sz
 #endif
 
 mkBigPS :: Int -> [ByteString] -> IO ByteString
@@ -1809,12 +1796,13 @@ hPut h (PS ps s l) = withForeignPtr ps $ \p-> hPutBuf h (p `plusPtr` s) l
 -- Note: on Windows and with Haskell implementation other than GHC, this
 -- function does not work correctly; it behaves identically to 'hPut'.
 --
-hPutNonBlocking :: Handle -> ByteString -> IO ByteString
 #if defined(__GLASGOW_HASKELL__)
+hPutNonBlocking :: Handle -> ByteString -> IO ByteString
 hPutNonBlocking h bs@(PS ps s l) = do
   bytesWritten <- withForeignPtr ps $ \p-> hPutBufNonBlocking h (p `plusPtr` s) l
   return $! drop bytesWritten bs
 #else
+hPutNonBlocking :: Handle -> B.ByteString -> IO Int
 hPutNonBlocking h bs = hPut h bs >> return empty
 #endif
 
@@ -1968,7 +1956,8 @@ interact transformer = putStr . transformer =<< getContents
 -- | Read an entire file strictly into a 'ByteString'.  This is far more
 -- efficient than reading the characters into a 'String' and then using
 -- 'pack'.  It also may be more efficient than opening the file and
--- reading it using 'hGet'.
+-- reading it using hGet. Files are read using 'binary mode' on Windows,
+-- for 'text mode' use the Char8 version of this function.
 --
 readFile :: FilePath -> IO ByteString
 readFile f = bracket (openBinaryFile f ReadMode) hClose
@@ -2032,5 +2021,5 @@ findFromEndUntil :: (Word8 -> Bool) -> ByteString -> Int
 STRICT2(findFromEndUntil)
 findFromEndUntil f ps@(PS x s l) =
     if null ps then 0
-    else if f (unsafeLast ps) then l
+    else if f (last ps) then l
          else findFromEndUntil f (PS x s (l-1))
