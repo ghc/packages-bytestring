@@ -476,7 +476,7 @@ append = mappend
 -- Transformations
 
 -- | /O(n)/ 'map' @f xs@ is the ByteString obtained by applying @f@ to each
--- element of @xs@. This function is subject to array fusion.
+-- element of @xs@.
 map :: (Word8 -> Word8) -> ByteString -> ByteString
 map f (PS fp s len) = unsafeDupablePerformIO $ withForeignPtr fp $ \a ->
     create len $ map_ 0 (a `plusPtr` s)
@@ -517,8 +517,6 @@ transpose ps = P.map pack (List.transpose (P.map unpack ps))
 -- | 'foldl', applied to a binary operator, a starting value (typically
 -- the left-identity of the operator), and a ByteString, reduces the
 -- ByteString using the binary operator, from left to right.
---
--- This function is subject to array fusion.
 --
 foldl :: (a -> Word8 -> a) -> a -> ByteString -> a
 foldl f v (PS x s l) = inlinePerformIO $ withForeignPtr x $ \ptr ->
@@ -563,7 +561,6 @@ foldr' k v (PS x s l) = inlinePerformIO $ withForeignPtr x $ \ptr ->
 
 -- | 'foldl1' is a variant of 'foldl' that has no starting value
 -- argument, and thus must be applied to non-empty 'ByteStrings'.
--- This function is subject to array fusion. 
 -- An exception will be thrown in the case of an empty ByteString.
 foldl1 :: (Word8 -> Word8 -> Word8) -> ByteString -> Word8
 foldl1 f ps
@@ -1260,7 +1257,7 @@ notElem c ps = not (elem c ps)
 
 -- | /O(n)/ 'filter', applied to a predicate and a ByteString,
 -- returns a ByteString containing those characters that satisfy the
--- predicate. This function is subject to array fusion.
+-- predicate.
 filter :: (Word8 -> Bool) -> ByteString -> ByteString
 filter k ps@(PS x s l)
     | null ps   = ps
@@ -1493,6 +1490,7 @@ zipWith :: (Word8 -> Word8 -> a) -> ByteString -> ByteString -> [a]
 zipWith f ps qs
     | null ps || null qs = []
     | otherwise = f (unsafeHead ps) (unsafeHead qs) : zipWith f (unsafeTail ps) (unsafeTail qs)
+{-# NOINLINE [1] zipWith #-}
 
 --
 -- | A specialised version of zipWith for the common case of a
@@ -1778,6 +1776,7 @@ mkPS buf start end =
         memcpy_ptr_baoff p buf (fromIntegral start) (fromIntegral len)
         return ()
 
+memcpy_ptr_baoff dst src src_off sz = memcpy dst (src+src_off) sz
 #endif
 
 mkBigPS :: Int -> [ByteString] -> IO ByteString
@@ -1959,8 +1958,7 @@ interact transformer = putStr . transformer =<< getContents
 -- | Read an entire file strictly into a 'ByteString'.  This is far more
 -- efficient than reading the characters into a 'String' and then using
 -- 'pack'.  It also may be more efficient than opening the file and
--- reading it using hGet. Files are read using 'binary mode' on Windows,
--- for 'text mode' use the Char8 version of this function.
+-- reading it using 'hGet'.
 --
 readFile :: FilePath -> IO ByteString
 readFile f = bracket (openBinaryFile f ReadMode) hClose
