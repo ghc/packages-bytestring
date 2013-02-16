@@ -133,7 +133,11 @@ import qualified Data.ByteString.Lazy as L
 import System.IO (Handle)
 
 #if MIN_VERSION_base(4,4,0)
+#if MIN_VERSION_base(4,7,0)
+import Foreign
+#else
 import Foreign hiding (unsafePerformIO, unsafeForeignPtrToPtr)
+#endif
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import System.IO.Unsafe (unsafePerformIO)
 #else
