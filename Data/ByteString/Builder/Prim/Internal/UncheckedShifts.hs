@@ -36,7 +36,7 @@ module Data.ByteString.Builder.Prim.Internal.UncheckedShifts (
 import GHC.Base
 import GHC.Word (Word32(..),Word16(..),Word64(..))
 
-#if WORD_SIZE_IN_BITS < 64 && __GLASGOW_HASKELL__ >= 608
+#if WORD_SIZE_IN_BITS < 64 && __GLASGOW_HASKELL__ >= 608 && __GLASGOW_HASKELL__ < 811
 import GHC.Word (uncheckedShiftRL64#)
 #endif
 #else
@@ -74,7 +74,7 @@ shiftr_w w s = fromIntegral $ (`shiftr_w64` s) $ fromIntegral w
 shiftr_w16 (W16# w) (I# i) = W16# (w `uncheckedShiftRL#`   i)
 shiftr_w32 (W32# w) (I# i) = W32# (w `uncheckedShiftRL#`   i)
 
-#if WORD_SIZE_IN_BITS < 64
+#if __GLASGOW_HASKELL__ >= 811 || WORD_SIZE_IN_BITS < 64
 shiftr_w64 (W64# w) (I# i) = W64# (w `uncheckedShiftRL64#` i)
 #else
 shiftr_w64 (W64# w) (I# i) = W64# (w `uncheckedShiftRL#` i)
