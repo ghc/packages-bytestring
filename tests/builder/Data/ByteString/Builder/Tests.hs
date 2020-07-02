@@ -52,9 +52,7 @@ import           TestFramework
 
 import           Test.QuickCheck
                    ( Arbitrary(..), oneof, choose, listOf, elements
-                   , UnicodeString(..) )
-import           Test.QuickCheck.Property
-                   ( counterexample, ioProperty )
+                   , counterexample, ioProperty, UnicodeString(..) )
 
 
 tests :: [Test]
