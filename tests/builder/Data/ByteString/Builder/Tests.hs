@@ -54,7 +54,7 @@ import           Test.QuickCheck
                    ( Arbitrary(..), oneof, choose, listOf, elements
                    , UnicodeString(..) )
 import           Test.QuickCheck.Property
-                   ( printTestCase, morallyDubiousIOProperty )
+                   ( counterexample, ioProperty )
 
 
 tests :: [Test]
@@ -81,7 +81,7 @@ testBuilderRecipe =
     testProperty "toLazyByteStringWith" $ testRecipe <$> arbitrary
   where
     testRecipe r =
-        printTestCase msg $ x1 == x2
+        counterexample msg $ x1 == x2
       where
         x1 = renderRecipe r
         x2 = buildRecipe r
@@ -471,7 +471,7 @@ testRunBuilder =
     testProperty "runBuilder" prop
   where
     prop actions =
-        morallyDubiousIOProperty $ do
+        ioProperty $ do
           let (builder, _) = recipeComponents recipe
               expected     = renderRecipe recipe
           actual <- bufferWriterOutput (runBuilder builder)
