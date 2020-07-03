@@ -47,7 +47,7 @@ script:
  - rm -f cabal.project
  - (cd tests; cabal v2-configure; cabal v2-test)
  # Build the benchmarks and run a single iteration.
- - if [ "$GHCVER" > 7 ]; then
+ - if [[ "$GHCVER" > 7.9 ]]; then
       (cd bench; cabal bench -O0 --benchmark-options "--quick --min-duration=0 --include-first-iter");
    fi
  # "cabal check" disabled due to -O2 warning
