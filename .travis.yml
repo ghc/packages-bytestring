@@ -44,7 +44,7 @@ script:
  # Remove to enable build of sdist.
  - rm -f cabal.project
  - (cd tests; cabal v2-configure; cabal v2-test)
- - (cd bench; cabal v2-build -O0 --max-backjumps=32000)
+ - (cd bench; cabal v2-build -O0)
  # "cabal check" disabled due to -O2 warning
  - export SRC=$(cabal info . | awk '{print $2; exit}');
    if [ -f "$SRC.tar.gz" ]; then
